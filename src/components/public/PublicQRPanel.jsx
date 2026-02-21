@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 
 const PublicQRPanel = ({ onBack }) => {
     const [identifier, setIdentifier] = useState('');
@@ -51,39 +51,39 @@ const PublicQRPanel = ({ onBack }) => {
     };
 
     const downloadQR = () => {
-        const svg = document.querySelector(".qr-display svg");
-        if (!svg) return;
+        const canvas = document.querySelector(".qr-display canvas");
+        if (!canvas) {
+            console.error("Canvas not found");
+            return;
+        }
 
-        const svgData = new XMLSerializer().serializeToString(svg);
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        const img = new Image();
-        const svgBlob = new Blob([svgData], { type: "image/xml+svg;charset=utf-8" });
-        const url = URL.createObjectURL(svgBlob);
-
-        img.onload = () => {
+        try {
+            // Create a temporary canvas for high-quality downlaod with padding
+            const padding = 60;
             const size = 1024;
-            const padding = 80; // Quiet zone for better scanning
-            canvas.width = size + (padding * 2);
-            canvas.height = size + (padding * 2);
+            const downloadCanvas = document.createElement("canvas");
+            downloadCanvas.width = size + (padding * 2);
+            downloadCanvas.height = size + (padding * 2);
+            const ctx = downloadCanvas.getContext("2d");
 
-            // Draw white background
-            ctx.fillStyle = "white";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Fill background
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
 
-            // Draw QR code with padding
-            ctx.drawImage(img, padding, padding, size, size);
+            // Draw the QR code from the original canvas (drawing it larger)
+            ctx.drawImage(canvas, padding, padding, size, size);
 
-            URL.revokeObjectURL(url);
-            const pngUrl = canvas.toDataURL("image/png");
+            const pngUrl = downloadCanvas.toDataURL("image/png");
             const downloadLink = document.createElement("a");
             downloadLink.href = pngUrl;
             downloadLink.download = `QR-${attendee.prn || attendee.name.replace(/\s+/g, '_')}.png`;
             document.body.appendChild(downloadLink);
             downloadLink.click();
             document.body.removeChild(downloadLink);
-        };
-        img.src = url;
+        } catch (err) {
+            console.error("Download failed:", err);
+            alert("Download failed. Please try a different browser or take a screenshot.");
+        }
     };
 
     return (
@@ -127,7 +127,12 @@ const PublicQRPanel = ({ onBack }) => {
                 ) : (
                     <div className="result-state" style={{ padding: '0' }}>
                         <div className="qr-display" style={{ background: '#fff', padding: '1.5rem', borderRadius: 'var(--radius)', boxShadow: 'inset 0 0 0 1px var(--border)', marginBottom: '1.5rem' }}>
-                            <QRCodeSVG value={attendee.prn || attendee.email} size={256} />
+                            <QRCodeCanvas
+                                value={attendee.prn || attendee.email}
+                                size={256}
+                                includeMargin={true}
+                                level="H"
+                            />
                         </div>
 
                         <div className="attendee-details" style={{ textAlign: 'left', marginBottom: '1.5rem' }}>
