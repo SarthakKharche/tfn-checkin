@@ -58,17 +58,22 @@ const PublicQRPanel = ({ onBack }) => {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         const img = new Image();
-        const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+        const svgBlob = new Blob([svgData], { type: "image/xml+svg;charset=utf-8" });
         const url = URL.createObjectURL(svgBlob);
 
         img.onload = () => {
-            canvas.width = 1024; // High resolution for download
-            canvas.height = 1024;
+            const size = 1024;
+            const padding = 80; // Quiet zone for better scanning
+            canvas.width = size + (padding * 2);
+            canvas.height = size + (padding * 2);
+
             // Draw white background
             ctx.fillStyle = "white";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            // Draw QR code
-            ctx.drawImage(img, 0, 0, 1024, 1024);
+
+            // Draw QR code with padding
+            ctx.drawImage(img, padding, padding, size, size);
+
             URL.revokeObjectURL(url);
             const pngUrl = canvas.toDataURL("image/png");
             const downloadLink = document.createElement("a");
