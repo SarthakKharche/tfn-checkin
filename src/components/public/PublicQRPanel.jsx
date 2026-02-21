@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -8,10 +8,32 @@ const PublicQRPanel = ({ onBack }) => {
     const [loading, setLoading] = useState(false);
     const [attendee, setAttendee] = useState(null);
     const [error, setError] = useState('');
+    const [events, setEvents] = useState([]);
+    const [selectedEventId, setSelectedEventId] = useState('');
+
+    useEffect(() => {
+        const fetchEvents = async () => {
+            try {
+                const q = query(collection(db, 'events'), orderBy('date', 'desc'));
+                const snapshot = await getDocs(q);
+                const eventList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setEvents(eventList);
+                if (eventList.length > 0) {
+                    setSelectedEventId(eventList[0].id);
+                }
+            } catch (err) {
+                console.error("Error fetching events:", err);
+            }
+        };
+        fetchEvents();
+    }, []);
 
     const handleSearch = async (e) => {
         e.preventDefault();
-        if (!identifier.trim()) return;
+        if (!identifier.trim() || !selectedEventId) {
+            setError('Please select an event and enter your PRN/Email.');
+            return;
+        }
 
         setLoading(true);
         setAttendee(null);
@@ -21,16 +43,26 @@ const PublicQRPanel = ({ onBack }) => {
             const searchVal = identifier.trim();
             let foundDoc = null;
 
-            // 1. Try PRN Search
-            const prnQ = query(collection(db, 'attendees'), where('prn', '==', searchVal), limit(1));
+            // 1. Try PRN Search scoped by event
+            const prnQ = query(
+                collection(db, 'attendees'),
+                where('prn', '==', searchVal),
+                where('eventId', '==', selectedEventId),
+                limit(1)
+            );
             const prnSnap = await getDocs(prnQ);
             if (!prnSnap.empty) {
                 foundDoc = prnSnap.docs[0];
             }
 
-            // 2. Try Email Search if PRN fails
+            // 2. Try Email Search scoped by event
             if (!foundDoc) {
-                const emailQ = query(collection(db, 'attendees'), where('email', '==', searchVal.toLowerCase()), limit(1));
+                const emailQ = query(
+                    collection(db, 'attendees'),
+                    where('email', '==', searchVal.toLowerCase()),
+                    where('eventId', '==', selectedEventId),
+                    limit(1)
+                );
                 const emailSnap = await getDocs(emailQ);
                 if (!emailSnap.empty) {
                     foundDoc = emailSnap.docs[0];
@@ -40,7 +72,7 @@ const PublicQRPanel = ({ onBack }) => {
             if (foundDoc) {
                 setAttendee(foundDoc.data());
             } else {
-                setError('No registration found with this PRN or Email.');
+                setError('No registration found for this event with the provided PRN or Email.');
             }
         } catch (err) {
             console.error("Search error:", err);
@@ -58,7 +90,6 @@ const PublicQRPanel = ({ onBack }) => {
         }
 
         try {
-            // Create a temporary canvas for high-quality downlaod with padding
             const padding = 60;
             const size = 1024;
             const downloadCanvas = document.createElement("canvas");
@@ -66,11 +97,8 @@ const PublicQRPanel = ({ onBack }) => {
             downloadCanvas.height = size + (padding * 2);
             const ctx = downloadCanvas.getContext("2d");
 
-            // Fill background
             ctx.fillStyle = "#FFFFFF";
             ctx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
-
-            // Draw the QR code from the original canvas (drawing it larger)
             ctx.drawImage(canvas, padding, padding, size, size);
 
             const pngUrl = downloadCanvas.toDataURL("image/png");
@@ -94,14 +122,34 @@ const PublicQRPanel = ({ onBack }) => {
                         <i className="fas fa-qrcode"></i>
                     </div>
                     <h1>Get Your QR Code</h1>
-                    <p>Enter your PRN or registered Email to retrieve your check-in code.</p>
+                    <p>Select your event and enter details to retrieve your check-in code.</p>
                 </div>
 
                 {!attendee ? (
                     <form onSubmit={handleSearch} autoComplete="off">
                         <div className="form-group">
+                            <label htmlFor="eventSelect">
+                                <i className="fas fa-calendar-alt"></i> Select Event
+                            </label>
+                            <select
+                                id="eventSelect"
+                                value={selectedEventId}
+                                onChange={(e) => setSelectedEventId(e.target.value)}
+                                style={{ width: '100%', padding: '0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontFamily: 'inherit' }}
+                                required
+                            >
+                                <option value="" disabled>Choose an event...</option>
+                                {events.map(event => (
+                                    <option key={event.id} value={event.id}>
+                                        {event.name} ({new Date(event.date).toLocaleDateString()})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="form-group">
                             <label htmlFor="searchIdentifier">
-                                <i className="fas fa-search"></i> PRN or Email Address
+                                <i className="fas fa-id-card"></i> PRN or Email Address
                             </label>
                             <input
                                 type="text"
@@ -115,7 +163,7 @@ const PublicQRPanel = ({ onBack }) => {
 
                         {error && <div className="login-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
-                        <button type="submit" className="btn btn-success btn-lg" disabled={loading}>
+                        <button type="submit" className="btn btn-success btn-lg" disabled={loading || events.length === 0}>
                             {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-search"></i>}
                             {loading ? ' Searching...' : ' Find My QR Code'}
                         </button>
@@ -143,6 +191,10 @@ const PublicQRPanel = ({ onBack }) => {
                             <div className="detail-row">
                                 <span className="detail-label">PRN</span>
                                 <span className="detail-value">{attendee.prn || 'N/A'}</span>
+                            </div>
+                            <div className="detail-row">
+                                <span className="detail-label">Event</span>
+                                <span className="detail-value">{events.find(e => e.id === attendee.eventId)?.name || 'Event Details'}</span>
                             </div>
                             <div className="detail-row">
                                 <span className="detail-label">Status</span>
