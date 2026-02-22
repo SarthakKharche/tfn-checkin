@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, writeBatch, where, serverTimestamp } from 'firebase/firestore';
+import { formatDate } from '../../lib/dateUtils';
 
 const EventsManager = ({ activeEvent, setActiveEvent }) => {
     const [events, setEvents] = useState([]);
@@ -137,7 +138,7 @@ const EventsManager = ({ activeEvent, setActiveEvent }) => {
                                     <div className="event-card-info">
                                         <h4>{event.name}</h4>
                                         <div className="event-card-date">
-                                            <i className="fas fa-calendar-day"></i> {new Date(event.date).toLocaleDateString()}
+                                            <i className="fas fa-calendar-day"></i> {formatDate(event.date)}
                                         </div>
                                         <div className="event-card-desc">{event.description || 'No description provided.'}</div>
                                     </div>

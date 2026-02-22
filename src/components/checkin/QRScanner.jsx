@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { Html5Qrcode } from 'html5-qrcode';
+import { formatDateTime } from '../../lib/dateUtils';
 
 const QRScanner = ({ activeEvent }) => {
     const [isScanning, setIsScanning] = useState(false);
     const [manualInput, setManualInput] = useState('');
     const [status, setStatus] = useState('default'); // default, loading, success, already, notFound
     const [attendee, setAttendee] = useState(null);
+    const [attendeeRef, setAttendeeRef] = useState(null);
     const html5QrCodeRef = useRef(null);
 
     useEffect(() => {
@@ -57,15 +59,16 @@ const QRScanner = ({ activeEvent }) => {
     };
 
     const onScanSuccess = (decodedText) => {
-        lookupAndCheckIn(decodedText.trim());
+        lookupAndCheckIn(decodedText.trim(), false);
     };
 
-    const lookupAndCheckIn = async (identifier) => {
+    const lookupAndCheckIn = async (identifier, isManual = true) => {
         if (!identifier) return;
         if (!activeEvent) return;
 
         setStatus('loading');
         setAttendee(null);
+        setAttendeeRef(null);
 
         try {
             let attendeeDoc = null;
@@ -93,22 +96,44 @@ const QRScanner = ({ activeEvent }) => {
 
             const data = attendeeDoc.data();
             setAttendee(data);
+            setAttendeeRef(attendeeDoc.ref);
 
             if (data.checkedIn) {
                 setStatus('already');
                 return;
             }
 
-            // Update Firestore
-            await updateDoc(attendeeDoc.ref, {
+            if (isManual) {
+                setStatus('pendingCheckIn');
+            } else {
+                // Auto check-in for QR scans
+                await updateDoc(attendeeDoc.ref, {
+                    checkedIn: true,
+                    checkInTime: serverTimestamp()
+                });
+                setStatus('success');
+                playBeep();
+            }
+        } catch (error) {
+            console.error("Check-in error:", error);
+            setStatus('notFound');
+        }
+    };
+
+    const handleConfirmCheckIn = async () => {
+        if (!attendeeRef) return;
+        setStatus('loading');
+        try {
+            await updateDoc(attendeeRef, {
                 checkedIn: true,
                 checkInTime: serverTimestamp()
             });
-
+            const updatedDoc = { ...attendee, checkedIn: true, checkInTime: new Date() };
+            setAttendee(updatedDoc);
             setStatus('success');
             playBeep();
         } catch (error) {
-            console.error("Check-in error:", error);
+            console.error("Confirm check-in error:", error);
             setStatus('notFound');
         }
     };
@@ -180,9 +205,9 @@ const QRScanner = ({ activeEvent }) => {
                                     placeholder="Enter PRN or email..."
                                     value={manualInput}
                                     onChange={(e) => setManualInput(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && lookupAndCheckIn(manualInput)}
+                                    onKeyDown={(e) => e.key === 'Enter' && lookupAndCheckIn(manualInput, true)}
                                 />
-                                <button className="btn btn-primary" onClick={() => lookupAndCheckIn(manualInput)}>
+                                <button className="btn btn-primary" onClick={() => lookupAndCheckIn(manualInput, true)}>
                                     <i className="fas fa-search"></i> Look Up
                                 </button>
                             </div>
@@ -215,13 +240,29 @@ const QRScanner = ({ activeEvent }) => {
                             </div>
                         )}
 
+                        {status === 'pendingCheckIn' && attendee && (
+                            <div className="result-state">
+                                <div className="result-icon warning"><i className="fas fa-user-clock"></i></div>
+                                <h3>Attendee Found</h3>
+                                <p style={{ marginBottom: '1rem' }}>Click below to confirm check-in.</p>
+                                <AttendeeDetails data={attendee} />
+                                <button
+                                    className="btn btn-success btn-lg"
+                                    style={{ marginTop: '1.5rem', width: '100%' }}
+                                    onClick={handleConfirmCheckIn}
+                                >
+                                    <i className="fas fa-user-check"></i> Confirm Check In
+                                </button>
+                            </div>
+                        )}
+
                         {status === 'already' && attendee && (
                             <div className="result-state">
                                 <div className="result-icon warning"><i className="fas fa-exclamation-triangle"></i></div>
                                 <h3>Already Checked In!</h3>
                                 {attendee.checkInTime && (
                                     <p className="already-time">
-                                        Checked in at: {attendee.checkInTime.toDate?.()?.toLocaleString() || new Date(attendee.checkInTime).toLocaleString()}
+                                        Checked in at: {formatDateTime(attendee.checkInTime)}
                                     </p>
                                 )}
                                 <AttendeeDetails data={attendee} />

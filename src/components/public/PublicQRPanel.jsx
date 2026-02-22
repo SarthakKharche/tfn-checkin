@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { QRCodeCanvas } from 'qrcode.react';
+import { formatDate, formatDateTime } from '../../lib/dateUtils';
 
 const PublicQRPanel = ({ onBack }) => {
     const [identifier, setIdentifier] = useState('');
@@ -141,7 +142,7 @@ const PublicQRPanel = ({ onBack }) => {
                                 <option value="" disabled>Choose an event...</option>
                                 {events.map(event => (
                                     <option key={event.id} value={event.id}>
-                                        {event.name} ({new Date(event.date).toLocaleDateString()})
+                                        {event.name} ({formatDate(event.date)})
                                     </option>
                                 ))}
                             </select>
@@ -199,7 +200,7 @@ const PublicQRPanel = ({ onBack }) => {
                             <div className="detail-row">
                                 <span className="detail-label">Status</span>
                                 <span className={`status-badge ${attendee.checkedIn ? 'checked-in' : 'pending'}`}>
-                                    <i className={`fas ${attendee.checkedIn ? 'fa-check' : 'fa-clock'}`}></i> {attendee.checkedIn ? 'Checked In' : 'Registered'}
+                                    <i className={`fas ${attendee.checkedIn ? 'fa-check' : 'fa-clock'}`}></i> {attendee.checkedIn ? `Checked In (${formatDateTime(attendee.checkInTime)})` : 'Registered'}
                                 </span>
                             </div>
                         </div>
