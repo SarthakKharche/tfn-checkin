@@ -31,6 +31,21 @@ const Dashboard = ({ activeEvent }) => {
         year: 'First Year'
     });
 
+    const findValue = (row, field) => {
+        const mappings = {
+            name: ['name', 'full name', 'student name', 'candidate name', 'attendee name'],
+            prn: ['prn', 'roll no', 'roll number', 'prn number', 'id number', 'registration number'],
+            email: ['email', 'email address', 'email id'],
+            mobile: ['mobile', 'mobile number', 'phone', 'contact', 'telephone'],
+            year: ['year', 'class', 'branch', 'batch']
+        };
+        const keys = mappings[field] || [field];
+        const actualKey = Object.keys(row).find(k =>
+            keys.includes((k || '').toLowerCase().trim())
+        );
+        return actualKey ? (row[actualKey] || '').toString().trim() : '';
+    };
+
     const fetchAttendees = async () => {
         if (!activeEvent) return;
         setLoading(true);
@@ -163,11 +178,11 @@ const Dashboard = ({ activeEvent }) => {
         for (let i = 0; i < csvData.length; i++) {
             const row = csvData[i];
             const attendee = {
-                name: row.Name || row.name || '',
-                prn: row.PRN || row.prn || '',
-                email: (row.Email || row.email || '').toLowerCase(),
-                mobile: row.Mobile || row.mobile || '',
-                year: row.Year || row.year || '',
+                name: findValue(row, 'name'),
+                prn: findValue(row, 'prn'),
+                email: findValue(row, 'email').toLowerCase(),
+                mobile: findValue(row, 'mobile'),
+                year: findValue(row, 'year') || 'First Year',
                 eventId: activeEvent.id,
                 checkedIn: true,
                 checkInTime: serverTimestamp(),
@@ -526,6 +541,37 @@ const Dashboard = ({ activeEvent }) => {
                                                 <div className="progress-fill" style={{ width: `${uploadProgress}%`, height: '100%', background: '#6366f1', transition: 'width 0.3s' }}></div>
                                             </div>
                                             <p style={{ textAlign: 'center', marginTop: '0.5rem' }}>Processing: {uploadProgress}%</p>
+                                        </div>
+                                    )}
+
+                                    {csvData.length > 0 && !isSubmitting && !uploadResults && (
+                                        <div className="csv-preview" style={{ marginTop: '1.5rem' }}>
+                                            <h4 style={{ marginBottom: '0.5rem', fontSize: '1rem' }}><i className="fas fa-table"></i> Data Mapping Preview (First 3 rows)</h4>
+                                            <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                                                <table style={{ width: '100%', fontSize: '0.85rem' }}>
+                                                    <thead style={{ background: '#f9fafb' }}>
+                                                        <tr>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Name</th>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>PRN</th>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Email</th>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Mobile</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {csvData.slice(0, 3).map((row, i) => (
+                                                            <tr key={i}>
+                                                                <td style={{ padding: '0.5rem', borderBottom: i < 2 ? '1px solid #f3f4f6' : 'none' }}>{findValue(row, 'name') || <span style={{ color: '#ef4444' }}>Missing</span>}</td>
+                                                                <td style={{ padding: '0.5rem', borderBottom: i < 2 ? '1px solid #f3f4f6' : 'none' }}>{findValue(row, 'prn') || <span style={{ color: '#ef4444' }}>Missing</span>}</td>
+                                                                <td style={{ padding: '0.5rem', borderBottom: i < 2 ? '1px solid #f3f4f6' : 'none' }}>{findValue(row, 'email') || <span style={{ color: '#ef4444' }}>Missing</span>}</td>
+                                                                <td style={{ padding: '0.5rem', borderBottom: i < 2 ? '1px solid #f3f4f6' : 'none' }}>{findValue(row, 'mobile') || '—'}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <p style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                                                <i className="fas fa-info-circle"></i> If PRN is missing, ensure your CSV has a header like "PRN", "Roll No", or "ID".
+                                            </p>
                                         </div>
                                     )}
 

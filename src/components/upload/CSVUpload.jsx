@@ -11,6 +11,21 @@ const CSVUpload = ({ activeEvent }) => {
     const [results, setResults] = useState(null);
     const [isDragOver, setIsDragOver] = useState(false);
 
+    const findValue = (row, field) => {
+        const mappings = {
+            name: ['name', 'full name', 'student name', 'candidate name', 'attendee name'],
+            prn: ['prn', 'roll no', 'roll number', 'prn number', 'id number', 'registration number'],
+            email: ['email', 'email address', 'email id'],
+            mobile: ['mobile', 'mobile number', 'phone', 'contact', 'telephone'],
+            year: ['year', 'class', 'branch', 'batch']
+        };
+        const keys = mappings[field] || [field];
+        const actualKey = Object.keys(row).find(k =>
+            keys.includes((k || '').toLowerCase().trim())
+        );
+        return actualKey ? (row[actualKey] || '').toString().trim() : '';
+    };
+
     const handleFileSelect = (e) => {
         const file = e.target.files[0];
         if (file) {
@@ -51,11 +66,11 @@ const CSVUpload = ({ activeEvent }) => {
         for (let i = 0; i < parsedData.length; i++) {
             const row = parsedData[i];
             const attendee = {
-                name: row.Name || row.name || '',
-                prn: row.PRN || row.prn || '',
-                email: (row.Email || row.email || '').toLowerCase(),
-                mobile: row.Mobile || row.mobile || '',
-                year: row.Year || row.year || '',
+                name: findValue(row, 'name'),
+                prn: findValue(row, 'prn'),
+                email: findValue(row, 'email').toLowerCase(),
+                mobile: findValue(row, 'mobile'),
+                year: findValue(row, 'year') || 'First Year',
                 eventId: activeEvent.id,
                 checkedIn: false,
                 createdAt: serverTimestamp()
@@ -211,11 +226,11 @@ const CSVUpload = ({ activeEvent }) => {
                             <tbody>
                                 {parsedData.slice(0, 5).map((row, i) => (
                                     <tr key={i}>
-                                        <td>{row.Name || row.name}</td>
-                                        <td>{row.PRN || row.prn}</td>
-                                        <td>{row.Email || row.email}</td>
-                                        <td>{row.Mobile || row.mobile}</td>
-                                        <td>{row.Year || row.year}</td>
+                                        <td>{findValue(row, 'name')}</td>
+                                        <td>{findValue(row, 'prn')}</td>
+                                        <td>{findValue(row, 'email')}</td>
+                                        <td>{findValue(row, 'mobile')}</td>
+                                        <td>{findValue(row, 'year')}</td>
                                     </tr>
                                 ))}
                             </tbody>
