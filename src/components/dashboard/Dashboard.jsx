@@ -31,6 +31,15 @@ const Dashboard = ({ activeEvent }) => {
         year: 'First Year'
     });
 
+    const isEventDateComplete = () => {
+        if (!activeEvent?.date) return false;
+        const eventDate = activeEvent.date?.toDate ? activeEvent.date.toDate() : new Date(activeEvent.date);
+        if (Number.isNaN(eventDate.getTime())) return false;
+        const endOfDay = new Date(eventDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        return Date.now() > endOfDay.getTime();
+    };
+
     const findValue = (row, field) => {
         const mappings = {
             name: ['name', 'full name', 'student name', 'candidate name', 'attendee name'],
@@ -91,6 +100,12 @@ const Dashboard = ({ activeEvent }) => {
     });
 
     const handleManualCheckIn = async (attendeeId) => {
+        const attendee = attendees.find((item) => item.id === attendeeId);
+        if (isEventDateComplete() && !attendee?.isUnregistered) {
+            alert('Registered attendee check-in is closed for completed events.');
+            return;
+        }
+
         try {
             await updateDoc(doc(db, 'attendees', attendeeId), {
                 checkedIn: true,
@@ -251,6 +266,14 @@ const Dashboard = ({ activeEvent }) => {
                 <p>Real-time overview for <strong>{activeEvent?.name}</strong>.</p>
             </div>
 
+            {isEventDateComplete() && (
+                <div className="card" style={{ marginBottom: '1rem', borderLeft: '4px solid #f59e0b' }}>
+                    <p style={{ margin: 0, color: '#92400e', fontWeight: 600 }}>
+                        <i className="fas fa-calendar-times"></i> Event date is complete. Registered attendee check-in is blocked. You can still add unregistered participants.
+                    </p>
+                </div>
+            )}
+
             <div className="stats-grid">
                 <div className="stat-card">
                     <div className="stat-card-icon blue"><i className="fas fa-users"></i></div>
@@ -368,7 +391,13 @@ const Dashboard = ({ activeEvent }) => {
                                             <td data-label="Action">
                                                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'flex-end' }}>
                                                     {!a.checkedIn ? (
-                                                        <button className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }} onClick={() => handleManualCheckIn(a.id)}>
+                                                        <button
+                                                            className="btn btn-primary btn-sm"
+                                                            style={{ whiteSpace: 'nowrap' }}
+                                                            onClick={() => handleManualCheckIn(a.id)}
+                                                            disabled={isEventDateComplete() && !a.isUnregistered}
+                                                            title={isEventDateComplete() && !a.isUnregistered ? 'Registered attendee check-in is closed after event date.' : 'Check In'}
+                                                        >
                                                             <i className="fas fa-user-check"></i> Check In
                                                         </button>
                                                     ) : (

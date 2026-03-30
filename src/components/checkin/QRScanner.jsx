@@ -12,13 +12,43 @@ const QRScanner = ({ activeEvent }) => {
     const [attendeeRef, setAttendeeRef] = useState(null);
     const html5QrCodeRef = useRef(null);
 
+    const stopAndCleanupScanner = async (updateState = true) => {
+        const scanner = html5QrCodeRef.current;
+        if (!scanner) {
+            if (updateState) setIsScanning(false);
+            return;
+        }
+
+        try {
+            await scanner.stop();
+        } catch (error) {
+            // Scanner may already be stopped; ignore this and continue cleanup.
+        }
+
+        try {
+            await scanner.clear();
+        } catch (error) {
+            // Ignore clear errors to avoid breaking UI on stop.
+        }
+
+        html5QrCodeRef.current = null;
+        if (updateState) setIsScanning(false);
+    };
+
+    const isEventDateComplete = () => {
+        if (!activeEvent?.date) return false;
+        const eventDate = activeEvent.date?.toDate ? activeEvent.date.toDate() : new Date(activeEvent.date);
+        if (Number.isNaN(eventDate.getTime())) return false;
+        const endOfDay = new Date(eventDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        return Date.now() > endOfDay.getTime();
+    };
+
     useEffect(() => {
         return () => {
-            if (html5QrCodeRef.current && isScanning) {
-                html5QrCodeRef.current.stop().catch(console.error);
-            }
+            stopAndCleanupScanner(false).catch(console.error);
         };
-    }, [isScanning]);
+    }, []);
 
     const startScanner = async () => {
         if (!activeEvent) {
@@ -26,7 +56,18 @@ const QRScanner = ({ activeEvent }) => {
             return;
         }
 
+        if (isEventDateComplete()) {
+            setStatus('eventClosed');
+            return;
+        }
+
+        if (isScanning) return;
+
         try {
+            if (html5QrCodeRef.current) {
+                await stopAndCleanupScanner(false);
+            }
+
             const html5QrCode = new Html5Qrcode("qr-reader");
             html5QrCodeRef.current = html5QrCode;
 
@@ -52,10 +93,7 @@ const QRScanner = ({ activeEvent }) => {
     };
 
     const stopScanner = async () => {
-        if (html5QrCodeRef.current) {
-            await html5QrCodeRef.current.stop();
-            setIsScanning(false);
-        }
+        await stopAndCleanupScanner(true);
     };
 
     const onScanSuccess = (decodedText) => {
@@ -65,6 +103,13 @@ const QRScanner = ({ activeEvent }) => {
     const lookupAndCheckIn = async (identifier, isManual = true) => {
         if (!identifier) return;
         if (!activeEvent) return;
+
+        if (isEventDateComplete()) {
+            setStatus('eventClosed');
+            setAttendee(null);
+            setAttendeeRef(null);
+            return;
+        }
 
         setStatus('loading');
         setAttendee(null);
@@ -274,6 +319,14 @@ const QRScanner = ({ activeEvent }) => {
                                 <div className="result-icon error"><i className="fas fa-times-circle"></i></div>
                                 <h3>Attendee Not Found</h3>
                                 <p>No registration found. Please verify the attendee's registration.</p>
+                            </div>
+                        )}
+
+                        {status === 'eventClosed' && (
+                            <div className="result-state">
+                                <div className="result-icon warning"><i className="fas fa-calendar-times"></i></div>
+                                <h3>Check-In Closed</h3>
+                                <p>This event date is complete. Registered attendee check-in is blocked.</p>
                             </div>
                         )}
                     </div>
